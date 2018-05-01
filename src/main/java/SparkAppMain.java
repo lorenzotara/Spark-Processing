@@ -28,8 +28,10 @@ public class SparkAppMain {
         SQLContext sqlContext = new SQLContext(sc);
 
         // Reading articles and output files
-        DataFrame articlesDF = sqlContext.read().json("data/dataset/*.gz");
-        DataFrame outputDF = sqlContext.read().json("data/output.json");
+        String localPath = "/Users/lorenzotara/Documents/EPFL/Semestral_Project/find_author/data/";
+        String serverPath = "data/";
+        DataFrame articlesDF = sqlContext.read().json(localPath + "dataset/part-00000.gz");
+        DataFrame outputDF = sqlContext.read().json(localPath + "output.json");
 
         // Taking only useful information from articlesDF
         articlesDF.printSchema();
@@ -73,7 +75,8 @@ public class SparkAppMain {
                         joined.col("speaker"),
                         functions.callUDF("tokenize", joined.col("quotation")))
                 .withColumnRenamed("tokenize(quotation)", "quotation")
-                .write().parquet("data/joined_java");
+                .show(5);
+                // .write().parquet("data/joined_java");
 
     }
 }
