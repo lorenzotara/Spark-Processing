@@ -9,16 +9,12 @@ import org.apache.spark.sql.DataFrame;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.LongType;
 import scala.collection.Iterator;
-import scala.collection.JavaConversions;
-import scala.collection.JavaConversions$;
 import scala.collection.mutable.WrappedArray;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -175,7 +171,6 @@ public class SparkAppMain {
 
         // Reading articles
         String serverPath = "data/";
-        // String serverPath = "/Users/lorenzotara/Documents/EPFL/Semestral_Project/find_author/data/";
         DataFrame articlesDF = sqlContext.read().json(serverPath + data_path + "/*.gz");
 
         // Taking only useful information from articlesDF
@@ -209,7 +204,6 @@ public class SparkAppMain {
             DataFrame mappingDF = sqlContext.read().json(serverPath + mappingPath);
 
             // Taking the articles of interest from the whole collection
-            // DataFrame mergedDF = articles_id_content.join(mappingDF, "articleUID");
             DataFrame mergedDF = articlesIdContent.
                     join(mappingDF, mappingDF.col("articleUID").equalTo(articlesIdContent.col("articleUIDArt"))
                             , "inner")
@@ -218,8 +212,6 @@ public class SparkAppMain {
             // Merging the articles corresponding to the mapping to the "target" in order to get the speaker
             DataFrame combinedDF = outputDFFlattened.join(mergedDF, outputDFFlattened.col("canonicalQuotation")
                     .equalTo(mergedDF.col("canonicalQuotationDestination")));
-
-            combinedDF.show();
 
             DataFrame mergedTokenized = combinedDF
                     .select("articleUID", "confidence", "content", "canonicalQuotationSource", "speaker")
