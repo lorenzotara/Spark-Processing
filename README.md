@@ -26,6 +26,10 @@ Structure of final file:
 * `content`: content of the article
 * `quotation`: quotation retrieved by the Quootstrap algorithm
 
+How to run the jar:<br>
+`spark-submit --master yarn --num-executors 20 --executor-memory 10G --driver-memory 100G new_output_jar.jar dataset quootstrap-quotation-dataset.json new_joined_java` <br>
+where `new_output_jar.jar` is the jar created from the maven project
+
 ### 2) Map discarded (quotation, speaker) pairs to articles
 
 `mapping` argument = `map`<br>
@@ -38,5 +42,15 @@ Structure of final file:
 * `canonicalQuotationSource`: real quotation found in the document
 
 Retrieve content of articles contained in `mapping file`. Save the files in `write_path`.<br>
-Structure of final file: same as in 1)
+Structure of final file: same as in 1)<br>
+
+How to run the jar:<br>
+`spark-submit --master yarn --num-executors 100 --executor-memory 10G --driver-memory 100G new_output_jar.jar dataset quootstrap-quotation-dataset.json new_merged_tokenized map merge_mapping.json.gz` <br>
+where `new_output_jar.jar` is the jar created from the maven project
+
+### Creating the jar
+Install the dependencies of the pom.xml.<br>
+Compile the maven project and then create a package. You will find two jars in the `target` folder:
+* `target/spark-project-1.0-SNAPSHOT-allinone.jar`: this is the jar you want to use (the `new_output_jar.jar` in the examples)
+* `target/spark-project-1.0-SNAPSHOT.jar`: DO NOT USE IT
 
