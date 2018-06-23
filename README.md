@@ -15,6 +15,8 @@ Main parameters:
 * `occurrences`: List, list containing the different articleUIDs, quotations, patterns and pattern_confidence
 * `canonicalQuotation`: canonical quotation that refers to all quotations in occurrences
 
+Data should be stored in the hadoop cluster in the folder `data/`
+
 ### 1) Extract articles from dataset (no mapping)
 
 Retrieve content of articles contained in `quootstrap_path`. Save the files in `write_path`.<br>
