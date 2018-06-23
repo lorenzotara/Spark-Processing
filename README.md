@@ -11,8 +11,9 @@ Main parameters:
 4) mapping file (optional): only if mapping, path to the file containing the mapping of discarded files (merge_mapping.json.gz)
 
 `quootstrap-quotation-dataset.json` columns:
-* speaker: String, speaker of the quotation
-* occurrences: List, list containing the different articleUIDs, quotations, patterns and pattern_confidence.
+* `speaker`: String, speaker of the quotation
+* `occurrences`: List, list containing the different articleUIDs, quotations, patterns and pattern_confidence
+* `canonicalQuotation`: canonical quotation that refers to all quotations in occurrences
 
 ### 1) Extract articles from dataset (no mapping)
 
@@ -27,10 +28,15 @@ Structure of final file:
 
 ### 2) Map discarded (quotation, speaker) pairs to articles
 
-`mapping` argument = `map`
-`mapping file` argument = dataset containing the mapping (e.g.: `merge_mapping.json.gz`)
+`mapping` argument = `map`<br>
+`mapping file` argument = dataset containing the mapping (e.g.: `merge_mapping.json.gz`)<br>
+
+`merge_mapping.json.gz` columns:
+* `articleUID`: unique id of the article
+* `canonicalQuotationDestination`: destination quotation of the mapping (quotation used to map). This quotation is equal to canonicalQuotation of the quootstrap file
+* `confidence`: confidence of the pattern that extracted the (quotation, speaker) pair
+* `canonicalQuotationSource`: real quotation found in the document
 
 Retrieve content of articles contained in `mapping file`. Save the files in `write_path`.<br>
 Structure of final file: same as in 1)
 
-Retrieve contetn
