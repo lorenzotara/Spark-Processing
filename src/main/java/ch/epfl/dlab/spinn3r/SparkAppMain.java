@@ -9,6 +9,7 @@ import org.apache.spark.sql.DataFrame;
 import org.apache.spark.sql.SQLContext;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.LongType;
 import scala.collection.Iterator;
 import scala.collection.JavaConversions;
 import scala.collection.JavaConversions$;
@@ -56,13 +57,18 @@ public class SparkAppMain {
             mappingPath = "not_used";
         }
 
-
-
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Register the UDF with our SQLContext
         sqlContext.udf().register("tokenize", (String s) -> {
 
-            // Fixing parenthesis, tags and dashes
+            // HTML tags not to delete (quotations)
+            ArrayList<String> tagNotToDel = new ArrayList<>();
+            tagNotToDel.add("<q>");
+            tagNotToDel.add("<blockquote>");
+            tagNotToDel.add("</q>");
+            tagNotToDel.add("</blockquote>");
+
+            // Fixing parenthesis
             HashMap<String, String> fixMap = new HashMap<>();
             fixMap.put("-LRB-", "(");
             fixMap.put("-RRB-", ")");
@@ -85,9 +91,10 @@ public class SparkAppMain {
                 if (fixMap.containsKey(labelString)) {
                     tokens.add(fixMap.get(labelString));
                 }
-                else if (labelString.startsWith(tagDel)) {
+                else if (labelString.startsWith(tagDel)  && !tagNotToDel.contains(labelString)) {
                     continue;
                 }
+                // Splitting words with dash
                 else if (labelString.contains("-") && labelString.length() > 1) {
                     String[] b = labelString.split("-");
                     if (b.length > 1) {
@@ -112,6 +119,13 @@ public class SparkAppMain {
 
         sqlContext.udf().register("fixContent", (WrappedArray<String> content) -> {
 
+            // HTML tags not to delete (quotations)
+            ArrayList<String> tagNotToDel = new ArrayList<>();
+            tagNotToDel.add("<q>");
+            tagNotToDel.add("<blockquote>");
+            tagNotToDel.add("</q>");
+            tagNotToDel.add("</blockquote>");
+
             HashMap<String, String> fixMap = new HashMap<>();
             fixMap.put("-LRB-", "(");
             fixMap.put("-RRB-", ")");
@@ -127,9 +141,15 @@ public class SparkAppMain {
                 if (fixMap.containsKey(token)) {
                     tokens.add(fixMap.get(token));
                 }
-                else if (token.startsWith(tagDel)) {
+
+                if (tagNotToDel.contains(token)) {
+                    tokens.add(token);
+                }
+
+                else if (token.startsWith(tagDel) && !tagNotToDel.contains(token)) {
                     continue;
                 }
+                // Splitting words with dash
                 else if (token.length() > 1 && token.contains("-")) {
                     String[] b = token.split("-");
                     if (b.length > 1) {
@@ -155,18 +175,23 @@ public class SparkAppMain {
 
         // Reading articles
         String serverPath = "data/";
+        // String serverPath = "/Users/lorenzotara/Documents/EPFL/Semestral_Project/find_author/data/";
         DataFrame articlesDF = sqlContext.read().json(serverPath + data_path + "/*.gz");
 
         // Taking only useful information from articlesDF
-        DataFrame articles_id_content = articlesDF.withColumn("articleUID", articlesDF.col("feedEntry.identifier"))
+        DataFrame articlesIdContent = articlesDF.withColumn("articleUID", articlesDF.col("feedEntry.identifier"))
                 .withColumn("content", articlesDF.col("permalinkEntry.tokenizedContent"))
                 .select("articleUID", "content");
 
         // Reading output files
         DataFrame outputDF = sqlContext.read().json(serverPath + quootstrap_path);
 
-        // Mapping
+        // Mapping from mapped dataset
         if (mapping.contentEquals("map")) {
+
+            articlesIdContent = articlesIdContent
+                    .withColumn("articleUIDArt", articlesIdContent.col("articleUID").cast(DataTypes.LongType))
+            .drop("articleUID");
 
             // Flattening output on occurrences
             DataFrame outputDFFlattened = outputDF
@@ -175,6 +200,7 @@ public class SparkAppMain {
 
             // Renaming columns
             outputDFFlattened = outputDFFlattened.withColumnRenamed("extractedBy", "targetPattern")
+                    .withColumn("articleUID", outputDFFlattened.col("articleUID").cast(DataTypes.LongType))
                     .withColumnRenamed("articleUID", "targetID")
                     .withColumnRenamed("quotation", "targetQuotation")
                     .withColumnRenamed("patternConfidence", "confidence");
@@ -183,27 +209,41 @@ public class SparkAppMain {
             DataFrame mappingDF = sqlContext.read().json(serverPath + mappingPath);
 
             // Taking the articles of interest from the whole collection
-            DataFrame mergedDF = articles_id_content.join(mappingDF, "articleUID");
+            // DataFrame mergedDF = articles_id_content.join(mappingDF, "articleUID");
+            DataFrame mergedDF = articlesIdContent.
+                    join(mappingDF, mappingDF.col("articleUID").equalTo(articlesIdContent.col("articleUIDArt"))
+                            , "inner")
+                    .drop("articleUIDArt");
 
             // Merging the articles corresponding to the mapping to the "target" in order to get the speaker
             DataFrame combinedDF = outputDFFlattened.join(mergedDF, outputDFFlattened.col("canonicalQuotation")
                     .equalTo(mergedDF.col("canonicalQuotationDestination")));
 
+            combinedDF.show();
+
             DataFrame mergedTokenized = combinedDF
                     .select("articleUID", "confidence", "content", "canonicalQuotationSource", "speaker")
                     .withColumnRenamed("canonicalQuotationSource", "quotation");
 
+
+            // Taking away repetitions
+            DataFrame groupedTokenized = mergedTokenized.groupBy("articleUID", "speaker", "quotation")
+                    .agg(functions.first("content").as("content"),
+                            functions.first("confidence").as("confidence"));
+
+
             // Fixing the content and tokenizing the quotation
-            mergedTokenized = mergedTokenized
-                    .select(mergedTokenized.col("articleUID"),
-                            mergedTokenized.col("confidence"),
-                            mergedTokenized.col("speaker"),
-                            functions.callUDF("fixContent", mergedTokenized.col("content")),
-                            functions.callUDF("tokenize", mergedTokenized.col("quotation")))
+            groupedTokenized = groupedTokenized
+                    .select(groupedTokenized.col("articleUID"),
+                            groupedTokenized.col("confidence"),
+                            groupedTokenized.col("speaker"),
+                            functions.callUDF("fixContent", groupedTokenized.col("content")),
+                            functions.callUDF("tokenize", groupedTokenized.col("quotation")))
                     .withColumnRenamed("fixContent(content)", "content")
                     .withColumnRenamed("tokenize(quotation)", "quotation");
 
-            mergedTokenized.write().parquet(serverPath + writePath);
+            groupedTokenized.write().parquet(serverPath + writePath);
+
         }
 
         // Extracting quootstrap articles
@@ -213,7 +253,7 @@ public class SparkAppMain {
                     .select("col.articleUID", "col.quotation", "col.extractedBy", "col.patternConfidence", "speaker");
 
             // Taking only articles of interest
-            DataFrame joined = articles_id_content.join(outputDFFlattened, "articleUID");
+            DataFrame joined = articlesIdContent.join(outputDFFlattened, "articleUID");
 
             // Fixing the content and tokenizing the quotations
             joined.select(joined.col("articleUID"),
