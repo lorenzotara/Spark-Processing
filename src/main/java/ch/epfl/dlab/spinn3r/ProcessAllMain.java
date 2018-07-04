@@ -35,9 +35,12 @@ public class ProcessAllMain {
         JavaSparkContext sc = new JavaSparkContext(sparkConf);
         SQLContext sqlContext = new SQLContext(sc);
 
+        String serverPath = "data/";
         // Path to all articles
-        // String data_path = args[0];
-        String data_path = "/Users/lorenzotara/Documents/EPFL/Semestral_Project/find_author/data/dataset";
+        String data_path = args[0];
+        // String data_path = "/Users/lorenzotara/Documents/EPFL/Semestral_Project/find_author/data/dataset";
+        // Path where to write the results
+        String writePath = args[1];
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -236,9 +239,7 @@ public class ProcessAllMain {
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // Reading articles
-        // String serverPath = "data/";
-        String serverPath = "";
-        DataFrame articlesDF = sqlContext.read().json(serverPath + data_path + "/*10.gz")
+        DataFrame articlesDF = sqlContext.read().json(serverPath + data_path + "/*.gz")
                 .sample(false, 0.2);
 
         // Taking only useful information from articlesDF
@@ -270,9 +271,8 @@ public class ProcessAllMain {
                 .drop("taggedContent")
                 .drop("quotationIndex");
 
-
-        articlesIdContent.show(20);
-        articlesIdContent.write().json("Tokenized");
+        // articlesIdContent.show(20);
+        articlesIdContent.write().parquet(serverPath + writePath);
 
     }
 }
